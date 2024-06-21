@@ -1,5 +1,6 @@
 package com.example.emotionmodel
 
+import android.content.Intent
 import android.os.Bundle
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
@@ -37,6 +38,17 @@ class MainActivity : AppCompatActivity() {
 
         uploadButton.setOnClickListener {
             getContent.launch("image/*")
+        }
+
+        val buttonOpenWeb: Button = findViewById(R.id.button_open_web)
+        buttonOpenWeb.setOnClickListener {
+            // 웹 페이지 URL ex) 감정분석 결과가 fear(두려움)로 나올때 추천음악 리스트로 이동
+            val url = "https://www.youtube.com/playlist?list=PL60lyX7GL-Xajt9vMshPPlM3O-kDINHrC"
+            // Intent 생성
+            val intent = Intent(Intent.ACTION_VIEW)
+            intent.data = Uri.parse(url)
+            // Intent 실행
+            startActivity(intent)
         }
     }
 
