@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace 'com.example.emotionmodel'
-    compileSdk 33
+    compileSdk 34
 
     defaultConfig {
         applicationId "com.example.emotionmodel"
-        minSdk 33
-        targetSdk 33
+        minSdk 21
+        targetSdk 34
         versionCode 1
         versionName "1.0"
 
@@ -44,6 +44,10 @@ android {
         resources {
             excludes += '/META-INF/{AL2.0,LGPL2.1}'
         }
+    }
+    lintOptions{
+        checkReleaseBuilds false
+        abortOnError false
     }
 }
 

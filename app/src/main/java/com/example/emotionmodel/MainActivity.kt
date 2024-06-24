@@ -19,6 +19,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var uploadButton: Button
     private lateinit var resultTextView: TextView
     private lateinit var emotionClassifier: EmotionClassifier
+    private lateinit var buttonOpenWeb: Button
+    private var topEmotion: String? = null
 
     private val getContent = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
@@ -35,20 +37,21 @@ class MainActivity : AppCompatActivity() {
         uploadButton = findViewById(R.id.upload_button)
         resultTextView = findViewById(R.id.result_text_view)
         emotionClassifier = EmotionClassifier(this)
+        buttonOpenWeb = findViewById(R.id.button_open_web)
 
         uploadButton.setOnClickListener {
             getContent.launch("image/*")
         }
 
-        val buttonOpenWeb: Button = findViewById(R.id.button_open_web)
         buttonOpenWeb.setOnClickListener {
-            // 웹 페이지 URL ex) 감정분석 결과가 fear(두려움)로 나올때 추천음악 리스트로 이동
-            val url = "https://www.youtube.com/playlist?list=PL60lyX7GL-Xajt9vMshPPlM3O-kDINHrC"
-            // Intent 생성
-            val intent = Intent(Intent.ACTION_VIEW)
-            intent.data = Uri.parse(url)
-            // Intent 실행
-            startActivity(intent)
+            topEmotion?.let {
+                val url = getYouTubePlaylistUrl(it)
+                val intent = Intent(Intent.ACTION_VIEW)
+                intent.data = Uri.parse(url)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                intent.setPackage(null) // 특정 앱을 지정하지 않음
+                startActivity(intent)
+            }
         }
     }
 
@@ -66,16 +69,31 @@ class MainActivity : AppCompatActivity() {
         val resultsText = emotions.zip(results.toTypedArray()).joinToString("\n") { "${it.first}: ${"%.2f".format(it.second * 100)}%" }
 
         resultTextView.text = resultsText
+        topEmotion = emotions[results.indices.maxByOrNull { results[it] } ?: 0] // 가장 높은 퍼센티지의 감정 저장
     }
 
     private fun getBitmapFromUri(uri: Uri): Bitmap {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val source = ImageDecoder.createSource(this.contentResolver, uri)
-            val bitmap = ImageDecoder.decodeBitmap(source)
-            bitmap.copy(Bitmap.Config.ARGB_8888, true) // ARGB_8888로 복사
+            ImageDecoder.decodeBitmap(source) { decoder, _, _ ->
+                decoder.isMutableRequired = true
+            }
         } else {
-            val bitmap = MediaStore.Images.Media.getBitmap(this.contentResolver, uri)
-            bitmap.copy(Bitmap.Config.ARGB_8888, true) // ARGB_8888로 복사
+            @Suppress("DEPRECATION")
+            MediaStore.Images.Media.getBitmap(this.contentResolver, uri).copy(Bitmap.Config.ARGB_8888, true)
+        }
+    }
+
+    private fun getYouTubePlaylistUrl(emotion: String): String {
+        return when (emotion) {
+            "Angry" -> "https://www.youtube.com/playlist?list=PL60lyX7GL-Xbl_iEIyRB7H8o8P7L9e3B0"
+            "Disgust" -> "https://www.youtube.com/playlist?list=PL60lyX7GL-XZ04qluzrPVq5z-H9iG_WVf"
+            "Fear" -> "https://www.youtube.com/playlist?list=PL60lyX7GL-Xajt9vMshPPlM3O-kDINHrC"
+            "Happy" -> "https://www.youtube.com/playlist?list=PL60lyX7GL-Xa6bRSCL2Efx2qqClJZqLfv"
+            "Sad" -> "https://www.youtube.com/playlist?list=YOUR_SAD_PLAYLIST_ID"
+            "Surprise" -> "https://www.youtube.com/playlist?list=PL60lyX7GL-XapuyHl4vnYX591CC5HiGw6"
+            "Neutral" -> "https://www.youtube.com/playlist?list=PL60lyX7GL-XY3O1LvoayND9mvG_B9auvx"
+            else -> "https://www.youtube.com/"
         }
     }
 }
