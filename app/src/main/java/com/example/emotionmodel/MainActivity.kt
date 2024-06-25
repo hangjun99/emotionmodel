@@ -1,11 +1,11 @@
 package com.example.emotionmodel
 
 import android.content.Intent
-import android.os.Bundle
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.provider.MediaStore
 import android.view.Window
 import android.widget.Button
@@ -14,6 +14,11 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.bumptech.glide.Glide
+import com.github.mikephil.charting.charts.PieChart
+import com.github.mikephil.charting.data.PieData
+import com.github.mikephil.charting.data.PieDataSet
+import com.github.mikephil.charting.data.PieEntry
+import com.github.mikephil.charting.utils.ColorTemplate
 
 class MainActivity : AppCompatActivity() {
     private lateinit var selectedImage: ImageView
@@ -21,6 +26,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var resultTextView: TextView
     private lateinit var emotionClassifier: EmotionClassifier
     private lateinit var buttonOpenWeb: Button
+    private lateinit var pieChart: PieChart
     private var topEmotion: String? = null
 
     private val getContent = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -40,6 +46,7 @@ class MainActivity : AppCompatActivity() {
         resultTextView = findViewById(R.id.result_text_view)
         emotionClassifier = EmotionClassifier(this)
         buttonOpenWeb = findViewById(R.id.button_open_web)
+        pieChart = findViewById(R.id.pie_chart)
 
         uploadButton.setOnClickListener {
             getContent.launch("image/*")
@@ -72,6 +79,37 @@ class MainActivity : AppCompatActivity() {
 
         resultTextView.text = resultsText
         topEmotion = emotions[results.indices.maxByOrNull { results[it] } ?: 0] // 가장 높은 퍼센티지의 감정 저장
+
+        setPieChart(emotions, results)
+    }
+
+    private fun setPieChart(emotions: Array<String>, results: FloatArray) {
+        val entries: ArrayList<PieEntry> = ArrayList()
+        for (i in emotions.indices) {
+            entries.add(PieEntry(results[i] * 100, emotions[i])) // 퍼센티지로 표시
+        }
+
+        val dataSet = PieDataSet(entries, "Emotion Distribution")
+
+        // 무지개색 배열 설정
+        val rainbowColors = intArrayOf(
+            0xFFE57373.toInt(), // Red
+            0xFFFFB74D.toInt(), // Orange
+            0xFFFFF176.toInt(), // Yellow
+            0xFF81C784.toInt(), // Green
+            0xFF64B5F6.toInt(), // Blue
+            0xFF9575CD.toInt(), // Indigo
+            0xFFBA68C8.toInt()  // Violet
+        )
+
+        dataSet.colors = rainbowColors.toList()
+        val data = PieData(dataSet)
+
+        pieChart.data = data
+        pieChart.setUsePercentValues(true)
+        pieChart.description.isEnabled = false
+        pieChart.legend.isEnabled = false
+        pieChart.invalidate()
     }
 
     private fun getBitmapFromUri(uri: Uri): Bitmap {
