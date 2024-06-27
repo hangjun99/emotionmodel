@@ -1,12 +1,12 @@
 package com.example.emotionmodel
 
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.ImageDecoder
+import android.graphics.*
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
+import android.util.Log
 import android.view.Window
 import android.widget.Button
 import android.widget.ImageView
@@ -18,7 +18,12 @@ import com.github.mikephil.charting.charts.PieChart
 import com.github.mikephil.charting.data.PieData
 import com.github.mikephil.charting.data.PieDataSet
 import com.github.mikephil.charting.data.PieEntry
-import com.github.mikephil.charting.utils.ColorTemplate
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.Face
+import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetectorOptions
+import java.io.IOException
+import kotlin.collections.ArrayList
 
 class MainActivity : AppCompatActivity() {
     private lateinit var selectedImage: ImageView
@@ -70,36 +75,81 @@ class MainActivity : AppCompatActivity() {
 
     private fun classifyEmotion(uri: Uri) {
         val bitmap = getBitmapFromUri(uri)
-        val resizedBitmap = Bitmap.createScaledBitmap(bitmap, 48, 48, true) // 모델 입력 크기와 일치하도록 크기 조정
-        val convertedBitmap = resizedBitmap.copy(Bitmap.Config.ARGB_8888, true) // 비트맵 복사
-        val results = emotionClassifier.classifyEmotion(convertedBitmap)
+        val grayBitmap = convertToGrayscale(bitmap)
+        detectFace(grayBitmap) { faceBitmap ->
+            if (faceBitmap != null) {
+                val resizedBitmap = Bitmap.createScaledBitmap(faceBitmap, 48, 48, true)
+                val convertedBitmap = resizedBitmap.copy(Bitmap.Config.ARGB_8888, true)
+                val results = emotionClassifier.classifyEmotion(convertedBitmap)
 
-        val emotions = arrayOf("Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise", "Neutral")
-        val resultsText = emotions.zip(results.toTypedArray()).joinToString("\n") { "${it.first}: ${"%.2f".format(it.second * 100)}%" }
+                val emotions = arrayOf("Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise", "Neutral")
+                val resultsText = emotions.zip(results.toTypedArray()).joinToString("\n") { "${it.first}: ${"%.2f".format(it.second * 100)}%" }
 
-        resultTextView.text = resultsText
-        topEmotion = emotions[results.indices.maxByOrNull { results[it] } ?: 0] // 가장 높은 퍼센티지의 감정 저장
+                resultTextView.text = resultsText
+                topEmotion = emotions[results.indices.maxByOrNull { results[it] } ?: 0]
 
-        setPieChart(emotions, results)
+                setPieChart(emotions, results)
+            } else {
+                resultTextView.text = "얼굴을 검출하지 못했습니다."
+            }
+        }
+    }
+
+    private fun convertToGrayscale(bitmap: Bitmap): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        val grayBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(grayBitmap)
+        val paint = Paint()
+        val colorMatrix = ColorMatrix()
+        colorMatrix.setSaturation(0f)
+        val colorFilter = ColorMatrixColorFilter(colorMatrix)
+        paint.colorFilter = colorFilter
+        canvas.drawBitmap(bitmap, 0f, 0f, paint)
+        return grayBitmap
+    }
+
+    private fun detectFace(bitmap: Bitmap, callback: (Bitmap?) -> Unit) {
+        val image = InputImage.fromBitmap(bitmap, 0)
+        val options = FaceDetectorOptions.Builder()
+            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+            .setContourMode(if (false) FaceDetectorOptions.CONTOUR_MODE_ALL else FaceDetectorOptions.CONTOUR_MODE_NONE)
+            .setLandmarkMode(if (false) FaceDetectorOptions.LANDMARK_MODE_ALL else FaceDetectorOptions.LANDMARK_MODE_NONE)
+            .build()
+        val detector = FaceDetection.getClient(options)
+
+        detector.process(image)
+            .addOnSuccessListener { faces ->
+                if (faces.isNotEmpty()) {
+                    val face = faces[0]
+                    val bounds = face.boundingBox
+                    val faceBitmap = Bitmap.createBitmap(bitmap, bounds.left, bounds.top, bounds.width(), bounds.height())
+                    callback(faceBitmap)
+                } else {
+                    callback(null)
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e("FaceDetection", "Face detection failed", e)
+                callback(null)
+            }
     }
 
     private fun setPieChart(emotions: Array<String>, results: FloatArray) {
         val entries: ArrayList<PieEntry> = ArrayList()
         for (i in emotions.indices) {
-            entries.add(PieEntry(results[i] * 100, emotions[i])) // 퍼센티지로 표시
+            entries.add(PieEntry(results[i] * 100, emotions[i]))
         }
 
         val dataSet = PieDataSet(entries, "Emotion Distribution")
-
-        // 무지개색 배열 설정
         val rainbowColors = intArrayOf(
-            0xFFE57373.toInt(), // Red
-            0xFFFFB74D.toInt(), // Orange
-            0xFFFFF176.toInt(), // Yellow
-            0xFF81C784.toInt(), // Green
-            0xFF64B5F6.toInt(), // Blue
-            0xFF9575CD.toInt(), // Indigo
-            0xFFBA68C8.toInt()  // Violet
+            0xFFE57373.toInt(),
+            0xFFFFB74D.toInt(),
+            0xFFFFF176.toInt(),
+            0xFF81C784.toInt(),
+            0xFF64B5F6.toInt(),
+            0xFF9575CD.toInt(),
+            0xFFBA68C8.toInt()
         )
 
         dataSet.colors = rainbowColors.toList()
